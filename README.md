@@ -11,31 +11,35 @@ grounds its recommendations in retrieved clinical evidence (RAG).
 > clinical decision-support tool and should not inform real patient care.
 > All data is public and de-identified (no PHI).
 
-## Architecturedata/raw/*.psv (real ICU data, PhysioNet Challenge 2019)
-│
-▼
-SQLite (care.db) <- ingest.py
-│ SQL query
-▼
-Rolling clinical features <- features.py
-(mean/std/slope, 6hr window,
+## Architecture
 
-Shock Index, approx qSOFA)
-│
-▼
-Hybrid risk model <- train.py, model_class.py
+```text
+data/raw/*.psv (real ICU data, PhysioNet Challenge 2019)
+        |
+        v
+SQLite (care.db)              <- ingest.py
+        |  SQL query
+        v
+Rolling clinical features      <- features.py
+(mean/std/slope, 6hr window,
+ + Shock Index, approx qSOFA)
+        |
+        v
+Hybrid risk model               <- train.py, model_class.py
 (XGBoost supervised +
-Isolation Forest baseline-
-deviation detector)
-│
-▼
-FastAPI REST API <- api.py
-│
-▼
-LangGraph multi-agent workflow <- agents.py
+ Isolation Forest baseline-
+ deviation detector)
+        |
+        v
+FastAPI REST API                <- api.py
+        |
+        v
+LangGraph multi-agent workflow  <- agents.py
 Monitor -> (elevated?) -> Diagnose (RAG) -> Recommend
--> (stable) -> Stable Report
-RAG grounded in rag.py + knowledge_base.py
+        -> (stable) -> Stable Report
+                              RAG grounded in rag.py + knowledge_base.py
+```
+
 ## Why this design
 
 - **Label definition matters.** PhysioNet's `SepsisLabel` is set to 1
@@ -67,22 +71,39 @@ clinically — "did we give the care team a heads-up" — not raw hour-level
 precision/recall, which is misleadingly low on this task due to severe
 class imbalance (~2.7% positive rows), a known characteristic of this
 benchmark, not a flaw in this implementation. (Trained here on a
-100-patient subset for iteration speed; the full 4,000-patient version
-scales these numbers up further.)
+100-patient subset for iteration speed.)
 
 ## Project structure
-ingest.py # PSV files -> SQLite
-features.py # rolling trend features + clinical composite scores
-model_class.py # HybridRiskModel class definition
-train.py # trains XGBoost + Isolation Forest, saves model
-api.py # FastAPI service (/risk and /assess endpoints)
-knowledge_base.py # clinical reference documents
-rag.py # ChromaDB retrieval
-agents.py # LangGraph monitor -> diagnose -> recommend workflow
-test_pipeline.py # pytest suite
-Dockerfile # container packaging
+
+```text
+ingest.py           # PSV files -> SQLite
+features.py          # rolling trend features + clinical composite scores
+model_class.py        # HybridRiskModel class definition
+train.py             # trains XGBoost + Isolation Forest, saves model
+api.py               # FastAPI service (/risk and /assess endpoints)
+knowledge_base.py     # clinical reference documents
+rag.py               # ChromaDB retrieval
+agents.py            # LangGraph monitor -> diagnose -> recommend workflow
+test_pipeline.py      # pytest suite
+Dockerfile           # container packaging
 requirements.txt
+```
+
 ## Running it
+
+Note: `data/raw/` is not included in this repo (too large for git). To
+reproduce, clone the source dataset and copy `training_setA`/`training_setB`
+into `data/raw/`:
+
+```bash
+git clone https://github.com/MartinOravecSvK/Early-Prediction-of-Sepsis.git temp_data
+mkdir -p data/raw
+mv temp_data/Dataset/training_setA data/raw/
+mv temp_data/Dataset/training_setB data/raw/
+rm -rf temp_data
+```
+
+Then:
 
 ```bash
 pip install -r requirements.txt
